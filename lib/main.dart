@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'theme/app_colors.dart';
 import 'theme/app_theme.dart';
 import 'widgets/common_app_bar.dart';
+import 'signup.dart';
 
 void main() {
   runApp(const MovieLogApp());
@@ -17,7 +18,7 @@ class MovieLogApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      home: const ProfileScreen(),
+      home: const SignupScreen(),
     );
   }
 }
