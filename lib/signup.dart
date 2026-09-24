@@ -1,7 +1,6 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
- 
+
 /// 회원가입 화면
 ///
 /// 화면은 의미 단위로 세 개의 Widget으로 나뉩니다.
@@ -10,28 +9,28 @@ import 'package:flutter_svg/flutter_svg.dart';
 /// - [_TermsAndSubmit]: 약관 동의, 가입 버튼, 로그인 이동 링크
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
- 
+
   @override
   State<SignupScreen> createState() => _SignupScreenState();
 }
- 
+
 class _SignupScreenState extends State<SignupScreen> {
   final formKey = GlobalKey<FormState>();
- 
+
   final _nicknameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
- 
+
   final _nicknameFocusNode = FocusNode();
   final _emailFocusNode = FocusNode();
   final _passwordFocusNode = FocusNode();
- 
+
   bool? _nicknameStatus;
   bool? _emailStatus;
   bool? _passwordStatus;
   bool _agreedToTerms = false;
   bool _obscurePassword = true;
- 
+
   @override
   void dispose() {
     _nicknameController.dispose();
@@ -42,44 +41,46 @@ class _SignupScreenState extends State<SignupScreen> {
     _passwordFocusNode.dispose();
     super.dispose();
   }
- 
+
   bool get _isFormValid =>
       _nicknameStatus == true &&
       _emailStatus == true &&
       _passwordStatus == true &&
       _agreedToTerms;
- 
+
   void _onNicknameChanged(String value) {
     setState(() {
       _nicknameStatus = value.trim().length >= 2;
     });
   }
- 
+
   void _onEmailChanged(String value) {
     setState(() {
-      _emailStatus = value.isNotEmpty && value.contains('@');
+      _emailStatus = value.isNotEmpty &&
+          value.contains('@') &&
+          value.contains('.');
     });
   }
- 
+
   void _onPasswordChanged(String value) {
     setState(() {
       _passwordStatus = value.length >= 8;
     });
   }
- 
+
   void _onTogglePasswordVisibility() {
     setState(() {
       _obscurePassword = !_obscurePassword;
     });
   }
- 
+
   void _onSignupPressed() {
     final isValid = formKey.currentState?.validate() ?? false;
     if (!isValid) return;
     FocusScope.of(context).unfocus();
     // 유효성 검사 및 약관 동의 통과 시 실행할 로직
   }
- 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -138,7 +139,7 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 }
- 
+
 /// 닉네임 / 이메일 / 비밀번호 유효성에 따라 체크(✔) 또는 에러(!) 아이콘을 보여준다.
 /// status가 null이면 아직 아무것도 입력하지 않은 상태이므로 아이콘을 표시하지 않는다.
 Widget? _statusIcon(bool? status) {
@@ -162,13 +163,47 @@ Widget? _statusIcon(bool? status) {
           ),
   );
 }
- 
+
+/// 모든 입력창에 공통으로 적용할 기본 둥근 테두리.
+/// 평소(에러 아닐 때)에도 항상 테두리가 보이도록 한다.
+const OutlineInputBorder _defaultBorder = OutlineInputBorder(
+  borderRadius: BorderRadius.all(Radius.circular(12)),
+  borderSide: BorderSide(color: Color(0xFFD9D9D9), width: 1),
+);
+
+const OutlineInputBorder _focusedBorder = OutlineInputBorder(
+  borderRadius: BorderRadius.all(Radius.circular(12)),
+  borderSide: BorderSide(color: Color(0xFF7C4DFF), width: 1.5),
+);
+
+/// status가 false일 때 테두리와 배경을 빨간색으로 바꿔주는 decoration 조각.
+/// 평소에는 둥근 회색 테두리, 포커스 시 보라색 테두리를 적용한다.
+InputDecoration _errorStyledDecoration({
+  required InputDecoration base,
+  required bool? status,
+}) {
+  final isError = status == false;
+
+  final errorBorder = OutlineInputBorder(
+    borderRadius: BorderRadius.circular(12),
+    borderSide: const BorderSide(color: Colors.red, width: 1.5),
+  );
+
+  return base.copyWith(
+    filled: isError,
+    fillColor: isError ? Colors.red.shade50 : null,
+    border: _defaultBorder,
+    enabledBorder: isError ? errorBorder : _defaultBorder,
+    focusedBorder: isError ? errorBorder : _focusedBorder,
+  );
+}
+
 /// 왼쪽 뒤로가기 버튼 + 중앙 타이틀을 같은 y좌표에 배치하는 상단 바.
 class _BackHeader extends StatelessWidget {
   const _BackHeader({required this.title});
- 
+
   final String title;
- 
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -201,7 +236,7 @@ class _BackHeader extends StatelessWidget {
     );
   }
 }
- 
+
 /// 닉네임 / 이메일 / 비밀번호 입력창.
 ///
 /// 키보드의 '다음' 버튼을 누르면 닉네임 → 이메일 → 비밀번호 순으로 Focus가 이동하고,
@@ -225,28 +260,28 @@ class _SignupForm extends StatelessWidget {
     required this.onTogglePasswordVisibility,
     required this.onSignupPressed,
   });
- 
+
   final GlobalKey<FormState> formKey;
- 
+
   final TextEditingController nicknameController;
   final TextEditingController emailController;
   final TextEditingController passwordController;
- 
+
   final FocusNode nicknameFocusNode;
   final FocusNode emailFocusNode;
   final FocusNode passwordFocusNode;
- 
+
   final bool? nicknameStatus;
   final bool? emailStatus;
   final bool? passwordStatus;
   final bool obscurePassword;
- 
+
   final ValueChanged<String> onNicknameChanged;
   final ValueChanged<String> onEmailChanged;
   final ValueChanged<String> onPasswordChanged;
   final VoidCallback onTogglePasswordVisibility;
   final VoidCallback onSignupPressed;
- 
+
   @override
   Widget build(BuildContext context) {
     return Form(
@@ -258,10 +293,14 @@ class _SignupForm extends StatelessWidget {
             focusNode: nicknameFocusNode,
             onChanged: onNicknameChanged,
             textInputAction: TextInputAction.next,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
             onFieldSubmitted: (_) => emailFocusNode.requestFocus(),
-            decoration: InputDecoration(
-              labelText: '닉네임',
-              suffixIcon: _statusIcon(nicknameStatus),
+            decoration: _errorStyledDecoration(
+              base: InputDecoration(
+                labelText: '닉네임',
+                suffixIcon: _statusIcon(nicknameStatus),
+              ),
+              status: nicknameStatus,
             ),
             validator: (value) {
               if (value == null || value.length < 2) {
@@ -277,16 +316,20 @@ class _SignupForm extends StatelessWidget {
             onChanged: onEmailChanged,
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.next,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
             onFieldSubmitted: (_) => passwordFocusNode.requestFocus(),
-            decoration: InputDecoration(
-              labelText: '이메일',
-              suffixIcon: _statusIcon(emailStatus),
+            decoration: _errorStyledDecoration(
+              base: InputDecoration(
+                labelText: '이메일',
+                suffixIcon: _statusIcon(emailStatus),
+              ),
+              status: emailStatus,
             ),
             validator: (value) {
               if (value == null || value.isEmpty) {
                 return '이메일을 입력해주세요';
               }
-              if (!value.contains('@')) {
+              if (!value.contains('@') || !value.contains('.')) {
                 return '올바른 이메일 형식이 아닙니다';
               }
               return null;
@@ -299,26 +342,30 @@ class _SignupForm extends StatelessWidget {
             onChanged: onPasswordChanged,
             obscureText: obscurePassword,
             textInputAction: TextInputAction.done,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
             onFieldSubmitted: (_) => onSignupPressed(),
-            decoration: InputDecoration(
-              labelText: '비밀번호',
-              suffixIcon: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_statusIcon(passwordStatus) != null)
-                    _statusIcon(passwordStatus)!,
-                  IconButton(
-                    icon: SvgPicture.asset(
-                      obscurePassword
-                          ? 'assets/icons/visibility_off.svg'
-                          : 'assets/icons/visibility.svg',
-                      width: 20,
-                      height: 20,
+            decoration: _errorStyledDecoration(
+              base: InputDecoration(
+                labelText: '비밀번호',
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_statusIcon(passwordStatus) != null)
+                      _statusIcon(passwordStatus)!,
+                    IconButton(
+                      icon: SvgPicture.asset(
+                        obscurePassword
+                            ? 'assets/icons/visibility_off.svg'
+                            : 'assets/icons/visibility.svg',
+                        width: 20,
+                        height: 20,
+                      ),
+                      onPressed: onTogglePasswordVisibility,
                     ),
-                    onPressed: onTogglePasswordVisibility,
-                  ),
-                ],
+                  ],
+                ),
               ),
+              status: passwordStatus,
             ),
             validator: (value) {
               if (value == null || value.length < 8) {
@@ -332,7 +379,7 @@ class _SignupForm extends StatelessWidget {
     );
   }
 }
- 
+
 /// 필수 약관 동의 체크박스, 가입 버튼, 로그인 이동 링크.
 class _TermsAndSubmit extends StatelessWidget {
   const _TermsAndSubmit({
@@ -342,13 +389,13 @@ class _TermsAndSubmit extends StatelessWidget {
     required this.onSignupPressed,
     required this.onLoginTap,
   });
- 
+
   final bool agreedToTerms;
   final ValueChanged<bool?> onAgreedChanged;
   final bool isFormValid;
   final VoidCallback onSignupPressed;
   final VoidCallback onLoginTap;
- 
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -398,4 +445,3 @@ class _TermsAndSubmit extends StatelessWidget {
     );
   }
 }
- 
