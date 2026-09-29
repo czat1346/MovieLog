@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'movie_data.dart';
 import 'widgets/common_app_bar.dart';
+import 'widgets/genre_filter_sheet.dart';
 import 'widgets/movie_card.dart';
 
 class MovieListScreen extends StatefulWidget {
@@ -12,41 +13,54 @@ class MovieListScreen extends StatefulWidget {
 }
 
 class _MovieListScreenState extends State<MovieListScreen> {
-  static const _all = '전체';
-  String _selected = _all;
+  Set<String> _applied = {}; // 비어 있으면 전체 표시
 
-  List<String> get _genres => [_all, ...movies.map((m) => m.genre).toSet()];
+  List<String> get _allGenres => movies.map((m) => m.genre).toSet().toList();
+
+  Future<void> _openFilterSheet() async {
+    final result = await showModalBottomSheet<Set<String>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) => GenreFilterSheet(
+          genres: _allGenres,
+          initialSelected: _applied,
+          scrollController: scrollController,
+        ),
+      ),
+    );
+    if (result == null) return; // 바깥을 눌러 닫으면 변경 없음
+    setState(() => _applied = result);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _selected == _all
+    final filtered = _applied.isEmpty
         ? movies
-        : movies.where((m) => m.genre == _selected).toList();
+        : movies.where((m) => _applied.contains(m.genre)).toList();
 
     return Scaffold(
       appBar: const CommonAppBar(title: '영화'),
       body: Column(
         children: [
-          SizedBox(
-            height: 56,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              itemCount: _genres.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final genre = _genres[index];
-                return ChoiceChip(
-                  label: Text(genre),
-                  selected: genre == _selected,
-                  onSelected: (_) => setState(() => _selected = genre),
-                );
-              },
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: IconButton(
+                onPressed: _openFilterSheet,
+                icon: const Icon(Icons.filter),
+              ),
             ),
           ),
           Expanded(
             child: GridView.builder(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
               itemCount: filtered.length,
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
