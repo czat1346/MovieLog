@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:go_router/go_router.dart';
 
 /// 회원가입 화면
 ///
@@ -75,10 +76,11 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   void _onSignupPressed() {
-    final isValid = formKey.currentState?.validate() ?? false;
-    if (!isValid) return;
-    FocusScope.of(context).unfocus();
-    // 유효성 검사 및 약관 동의 통과 시 실행할 로직
+  if (!_isFormValid) return; // 키보드 '완료'로 약관 미동의 통과되는 것 방지
+  final isValid = formKey.currentState?.validate() ?? false;
+  if (!isValid) return;
+  FocusScope.of(context).unfocus();
+  context.go('/home'); // 스택에 회원가입을 남기지 않고 홈으로 이동
   }
 
   @override
@@ -329,7 +331,7 @@ class _SignupForm extends StatelessWidget {
               if (value == null || value.isEmpty) {
                 return '이메일을 입력해주세요';
               }
-              if (!value.contains('@') || !value.contains('.')) {
+              if (!value.contains('@') || !value.contains('.') || value.indexOf('@') > value.lastIndexOf('.')) {
                 return '올바른 이메일 형식이 아닙니다';
               }
               return null;
