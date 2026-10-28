@@ -1,85 +1,110 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
-import 'movie_data.dart';
+import 'data/models/tmdb_movie_dto.dart';
 import 'theme/app_colors.dart';
+import 'view_models/movie_home_view_model.dart';
 import 'widgets/common_app_bar.dart';
 import 'widgets/movie_card.dart';
+import 'widgets/movie_list_empty.dart';
+import 'widgets/movie_list_error.dart';
+import 'widgets/movie_list_loading.dart';
+import 'widgets/tmdb_poster_image.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  // 화면이 만들어질 때 한 번만 랜덤 선택
-  final Movie _featured = movies[Random().nextInt(movies.length)];
-
-  @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
     return Scaffold(
       appBar: const CommonAppBar(title: 'MovieLog'),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('오늘은 어떤\n영화를 볼까요?', style: textTheme.titleLarge),
-              const SizedBox(height: 20),
-              _FeaturedMovieCard(movie: _featured),
-              const SizedBox(height: 28),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('인기 영화', style: textTheme.titleMedium),
-                  GestureDetector(
-                    onTap: () => context.go('/movies'),
-                    child: Text(
-                      '전체보기 >',
-                      style: textTheme.bodyMedium
-                          ?.copyWith(color: AppColors.primary),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 240,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: movies.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(width: 12),
-                  itemBuilder: (context, index) => SizedBox(
-                    width: 140,
-                    child: MovieCard(movie: movies[index]),
-                  ),
+        // Consumer: 상태가 바뀔 때 이 부분만 다시 그린다
+        child: Consumer<MovieHomeViewModel>(
+          builder: (context, vm, child) {
+            return switch (vm.status) {
+              MovieHomeLoadStatus.idle ||
+              MovieHomeLoadStatus.loading =>
+                const MovieListLoading(),
+              MovieHomeLoadStatus.error => MovieListError(
+                  onRetry: () => context.read<MovieHomeViewModel>().loadPopular(),
                 ),
-              ),
-            ],
-          ),
+              MovieHomeLoadStatus.empty => const MovieListEmpty(),
+              MovieHomeLoadStatus.success =>
+                _HomeContent(movies: vm.popularMovies),
+            };
+          },
         ),
       ),
     );
   }
 }
 
-/// 홈 상단의 큰 추천 카드 (포스터 + 어두운 그라데이션 + 정보 + 상세보기 버튼)
-class _FeaturedMovieCard extends StatelessWidget {
-  const _FeaturedMovieCard({required this.movie});
+class _HomeContent extends StatelessWidget {
+  const _HomeContent({required this.movies});
 
-  final Movie movie;
+  final List<TmdbMovieDto> movies; // 최대 5개
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('오늘은 어떤\n영화를 볼까요?', style: textTheme.titleLarge),
+          const SizedBox(height: 20),
+          _FeaturedMovieCard(movie: movies.first), // 비어 있으면 Empty 화면이라 안전
+          const SizedBox(height: 28),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('인기 영화', style: textTheme.titleMedium),
+              GestureDetector(
+                onTap: () => context.go('/movies'),
+                child: Text(
+                  '전체보기 >',
+                  style: textTheme.bodyMedium?.copyWith(color: AppColors.primary),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 240,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: movies.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 12),
+              itemBuilder: (context, index) => SizedBox(
+                width: 140,
+                child: MovieCard(movie: movies[index]),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FeaturedMovieCard extends StatelessWidget {
+  const _FeaturedMovieCard({required this.movie});
+
+  final TmdbMovieDto movie;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final date = movie.releaseDate;
+    final year = (date != null && date.length >= 4) ? date.substring(0, 4) : null;
+    final info = [
+      if (year != null) year,
+      '평점 ${movie.voteAverage.toStringAsFixed(1)}',
+    ].join(' · ');
 
     return AspectRatio(
       aspectRatio: 3 / 4,
@@ -88,13 +113,11 @@ class _FeaturedMovieCard extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Image.asset(
-              movie.posterAsset,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(
-                color: AppColors.black,
-                alignment: Alignment.center,
-                child: const Icon(Icons.movie, size: 60, color: Colors.white54),
+            LayoutBuilder(
+              builder: (context, constraints) => TmdbPosterImage(
+                posterPath: movie.posterPath,
+                width: constraints.maxWidth,
+                height: constraints.maxHeight,
               ),
             ),
             const DecoratedBox(
@@ -112,31 +135,13 @@ class _FeaturedMovieCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withAlpha(120),
-                      border: Border.all(color: AppColors.primary),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      '추천 신작',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
                   Text(
                     movie.title,
                     style: textTheme.titleLarge?.copyWith(color: Colors.white),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${movie.tags.take(2).join(' · ')} · ${movie.runtime}분',
+                    info,
                     style: textTheme.bodySmall?.copyWith(color: Colors.white70),
                   ),
                   const SizedBox(height: 16),
@@ -144,7 +149,6 @@ class _FeaturedMovieCard extends StatelessWidget {
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton.icon(
-                      // push: 상세에서 뒤로 가기로 홈에 복귀
                       onPressed: () => context.push('/movies/${movie.id}'),
                       icon: const Icon(Icons.info),
                       label: const Text('상세보기'),

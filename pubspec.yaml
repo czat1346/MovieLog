@@ -1,7 +1,7 @@
 name: movielog
 description: "A new Flutter project."
 
-publish_to: 'none' 
+publish_to: "none"
 
 version: 1.0.0+1
 
@@ -17,6 +17,9 @@ dependencies:
   flutter_rating_bar: ^4.0.1
   shared_preferences: ^2.5.5
   flutter_secure_storage: ^11.2.0
+  dio: ^5.11.1
+  provider: ^6.1.5+1
+  flutter_dotenv: ^6.0.1
 
 dev_dependencies:
   flutter_test:
@@ -28,6 +31,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - .env
     - assets/images/posters/
     - assets/images/profile/
     - assets/icons/

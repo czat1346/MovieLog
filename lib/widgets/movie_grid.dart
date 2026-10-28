@@ -1,12 +1,13 @@
+
 import 'package:flutter/material.dart';
 
-import '../movie_data.dart';
+import '../data/models/tmdb_movie_dto.dart';
 import 'movie_card.dart';
 
 class MovieGrid extends StatelessWidget {
   const MovieGrid({super.key, required this.movies});
 
-  final List<Movie> movies;
+  final List<TmdbMovieDto> movies;
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +20,8 @@ class MovieGrid extends StatelessWidget {
         mainAxisSpacing: 16,
         childAspectRatio: 0.65,
       ),
-      itemBuilder: (context, index) => MovieCard(movie: movies[index]),
+      itemBuilder: (context, index) =>
+          MovieCard(movie: movies[index]),
     );
   }
 }
