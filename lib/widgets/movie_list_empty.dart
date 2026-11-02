@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 class MovieListEmpty extends StatelessWidget {
-  const MovieListEmpty({super.key});
+  const MovieListEmpty({super.key, this.message = '조건에 맞는 영화가 없습니다.'});
+
+  final String message;
 
   @override
   Widget build(BuildContext context) {
-    return const Center(child: Text('조건에 맞는 영화가 없습니다.'));
+    return Center(child: Text(message));
   }
 }

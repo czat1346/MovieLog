@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:go_router/go_router.dart';
 
 import 'theme/app_colors.dart';
 import 'widgets/common_app_bar.dart';
@@ -28,6 +29,8 @@ class ProfileScreen extends StatelessWidget {
               ProfileStats(),
               SizedBox(height: 28),
               FavoriteGenres(),
+              SizedBox(height: 24),
+              MyRatingsTile(),
               SizedBox(height: 32),
             ],
           ),
@@ -192,6 +195,20 @@ class EditProfileButton extends StatelessWidget {
         ),
         child: const Text('프로필 수정'),
       ),
+    );
+  }
+}
+
+class MyRatingsTile extends StatelessWidget {
+  const MyRatingsTile({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: const Text('내가 등록한 평점'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => context.push('/my/ratings'),
     );
   }
 }

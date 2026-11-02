@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
+import 'view_models/sign_up_view_model.dart';
+import 'widgets/movielog_button.dart';
 
 /// 회원가입 화면
 ///
@@ -43,19 +47,30 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
-  bool get _isFormValid =>
-      _nicknameStatus == true &&
-      _emailStatus == true &&
+  // 가입 가능 조건: 닉네임·이메일은 서버 확인까지 끝나야 한다
+  bool _canSubmit(SignUpViewModel vm) =>
+      vm.nicknameCheckStatus == CheckStatus.available &&
+      vm.emailCheckStatus == CheckStatus.available &&
       _passwordStatus == true &&
       _agreedToTerms;
 
+  // 아이콘: 서버 확인 전에는 체크(✔)를 보여주지 않는다
+  bool? _iconStatus(CheckStatus check, bool? formatStatus) {
+    if (check == CheckStatus.available) return true;
+    if (check == CheckStatus.duplicated) return false;
+    if (formatStatus == false) return false; // 형식 오류
+    return null;
+  }
+
   void _onNicknameChanged(String value) {
+    context.read<SignUpViewModel>().onNicknameChanged(value); // 이전 결과 무효화
     setState(() {
       _nicknameStatus = value.trim().length >= 2;
     });
   }
 
   void _onEmailChanged(String value) {
+    context.read<SignUpViewModel>().onEmailChanged(value);
     setState(() {
       _emailStatus = value.isNotEmpty &&
           value.contains('@') &&
@@ -76,15 +91,17 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   void _onSignupPressed() {
-  if (!_isFormValid) return; // 키보드 '완료'로 약관 미동의 통과되는 것 방지
-  final isValid = formKey.currentState?.validate() ?? false;
-  if (!isValid) return;
-  FocusScope.of(context).unfocus();
-  context.go('/home'); // 스택에 회원가입을 남기지 않고 홈으로 이동
+    // 키보드 '완료'로 약관 미동의·중복 확인 미완료 상태가 통과되는 것 방지
+    if (!_canSubmit(context.read<SignUpViewModel>())) return;
+    final isValid = formKey.currentState?.validate() ?? false;
+    if (!isValid) return;
+    FocusScope.of(context).unfocus();
+    context.go('/home'); // 스택에 회원가입을 남기지 않고 홈으로 이동
   }
 
   @override
   Widget build(BuildContext context) {
+    final vm = context.watch<SignUpViewModel>();
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -110,8 +127,10 @@ class _SignupScreenState extends State<SignupScreen> {
                 nicknameFocusNode: _nicknameFocusNode,
                 emailFocusNode: _emailFocusNode,
                 passwordFocusNode: _passwordFocusNode,
-                nicknameStatus: _nicknameStatus,
-                emailStatus: _emailStatus,
+                viewModel: vm,
+                nicknameIconStatus:
+                    _iconStatus(vm.nicknameCheckStatus, _nicknameStatus),
+                emailIconStatus: _iconStatus(vm.emailCheckStatus, _emailStatus),
                 passwordStatus: _passwordStatus,
                 obscurePassword: _obscurePassword,
                 onNicknameChanged: _onNicknameChanged,
@@ -128,7 +147,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     _agreedToTerms = value ?? false;
                   });
                 },
-                isFormValid: _isFormValid,
+                isFormValid: _canSubmit(vm),
                 onSignupPressed: _onSignupPressed,
                 onLoginTap: () {
                   // TODO: 로그인 화면으로 이동
@@ -197,6 +216,8 @@ InputDecoration _errorStyledDecoration({
     border: _defaultBorder,
     enabledBorder: isError ? errorBorder : _defaultBorder,
     focusedBorder: isError ? errorBorder : _focusedBorder,
+    errorBorder: errorBorder,
+    focusedErrorBorder: errorBorder,
   );
 }
 
@@ -252,8 +273,9 @@ class _SignupForm extends StatelessWidget {
     required this.nicknameFocusNode,
     required this.emailFocusNode,
     required this.passwordFocusNode,
-    required this.nicknameStatus,
-    required this.emailStatus,
+    required this.viewModel,
+    required this.nicknameIconStatus,
+    required this.emailIconStatus,
     required this.passwordStatus,
     required this.obscurePassword,
     required this.onNicknameChanged,
@@ -273,8 +295,9 @@ class _SignupForm extends StatelessWidget {
   final FocusNode emailFocusNode;
   final FocusNode passwordFocusNode;
 
-  final bool? nicknameStatus;
-  final bool? emailStatus;
+  final SignUpViewModel viewModel;
+  final bool? nicknameIconStatus;
+  final bool? emailIconStatus;
   final bool? passwordStatus;
   final bool obscurePassword;
 
@@ -290,53 +313,113 @@ class _SignupForm extends StatelessWidget {
       key: formKey,
       child: Column(
         children: [
-          TextFormField(
-            controller: nicknameController,
-            focusNode: nicknameFocusNode,
-            onChanged: onNicknameChanged,
-            textInputAction: TextInputAction.next,
-            autovalidateMode: AutovalidateMode.onUserInteraction,
-            onFieldSubmitted: (_) => emailFocusNode.requestFocus(),
-            decoration: _errorStyledDecoration(
-              base: InputDecoration(
-                labelText: '닉네임',
-                suffixIcon: _statusIcon(nicknameStatus),
+          Row(
+            // 에러 문구로 입력창이 커져도 버튼이 가운데로 밀리지 않게 위쪽 정렬
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: nicknameController,
+                  focusNode: nicknameFocusNode,
+                  onChanged: onNicknameChanged,
+                  textInputAction: TextInputAction.next,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
+                  onFieldSubmitted: (_) => emailFocusNode.requestFocus(),
+                  decoration: _errorStyledDecoration(
+                    base: InputDecoration(
+                      labelText: '닉네임',
+                      suffixIcon: _statusIcon(nicknameIconStatus),
+                      errorText: viewModel.nicknameErrorText, // 서버 결과 연결
+                    ),
+                    status: nicknameIconStatus,
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().length < 2) {
+                      return '닉네임은 2자 이상이어야 합니다.';
+                    }
+                    return null;
+                  },
+                ),
               ),
-              status: nicknameStatus,
-            ),
-            validator: (value) {
-              if (value == null || value.length < 2) {
-                return '닉네임은 2자 이상이어야 합니다.';
-              }
-              return null;
-            },
+              const SizedBox(width: 8),
+              Padding(
+                padding: const EdgeInsets.only(top: 6), // 56px 입력창 중앙에 44px 버튼
+                child: MovieLogButton(
+                  label: '중복 확인',
+                  isLoading: viewModel.nicknameCheckStatus == CheckStatus.checking,
+                  onPressed: viewModel.canCheckNickname
+                      ? () => viewModel.checkNickname(nicknameController.text)
+                      : null,
+                ),
+              ),
+            ],
           ),
+          if (viewModel.nicknameCheckStatus == CheckStatus.available)
+            Padding(
+              padding: const EdgeInsets.only(left: 12, top: 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('사용할 수 있는 닉네임입니다.',
+                    style: Theme.of(context).textTheme.bodySmall),
+              ),
+            ),
           const SizedBox(height: 16),
-          TextFormField(
-            controller: emailController,
-            focusNode: emailFocusNode,
-            onChanged: onEmailChanged,
-            keyboardType: TextInputType.emailAddress,
-            textInputAction: TextInputAction.next,
-            autovalidateMode: AutovalidateMode.onUserInteraction,
-            onFieldSubmitted: (_) => passwordFocusNode.requestFocus(),
-            decoration: _errorStyledDecoration(
-              base: InputDecoration(
-                labelText: '이메일',
-                suffixIcon: _statusIcon(emailStatus),
+          Row(
+            // 에러 문구로 입력창이 커져도 버튼이 가운데로 밀리지 않게 위쪽 정렬
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: emailController,
+                  focusNode: emailFocusNode,
+                  onChanged: onEmailChanged,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
+                  onFieldSubmitted: (_) => passwordFocusNode.requestFocus(),
+                  decoration: _errorStyledDecoration(
+                    base: InputDecoration(
+                      labelText: '이메일',
+                      suffixIcon: _statusIcon(emailIconStatus),
+                      errorText: viewModel.emailErrorText, // 서버 결과 연결
+                    ),
+                    status: emailIconStatus,
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return '이메일을 입력해주세요';
+                    }
+                    if (!value.contains('@') ||
+                        !value.contains('.') ||
+                        value.indexOf('@') > value.lastIndexOf('.')) {
+                      return '올바른 이메일 형식이 아닙니다';
+                    }
+                    return null;
+                  },
+                ),
               ),
-              status: emailStatus,
-            ),
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return '이메일을 입력해주세요';
-              }
-              if (!value.contains('@') || !value.contains('.') || value.indexOf('@') > value.lastIndexOf('.')) {
-                return '올바른 이메일 형식이 아닙니다';
-              }
-              return null;
-            },
+              const SizedBox(width: 8),
+              Padding(
+                padding: const EdgeInsets.only(top: 6), // 56px 입력창 중앙에 44px 버튼
+                child: MovieLogButton(
+                  label: '중복 확인',
+                  isLoading: viewModel.emailCheckStatus == CheckStatus.checking,
+                  onPressed: viewModel.canCheckEmail
+                      ? () => viewModel.checkEmail(emailController.text)
+                      : null,
+                ),
+              ),
+            ],
           ),
+          if (viewModel.emailCheckStatus == CheckStatus.available)
+            Padding(
+              padding: const EdgeInsets.only(left: 12, top: 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('사용할 수 있는 이메일입니다.',
+                    style: Theme.of(context).textTheme.bodySmall),
+              ),
+            ),
           const SizedBox(height: 16),
           TextFormField(
             controller: passwordController,
@@ -412,19 +495,10 @@ class _TermsAndSubmit extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        ElevatedButton(
+        MovieLogButton(
+          label: '가입하기',
+          width: double.infinity,
           onPressed: isFormValid ? onSignupPressed : null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF7C4DFF),
-            disabledBackgroundColor: const Color(0xFFD9CBFF),
-            foregroundColor: Colors.white,
-            disabledForegroundColor: Colors.white,
-            minimumSize: const Size.fromHeight(52),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-          ),
-          child: const Text('가입하기'),
         ),
         const SizedBox(height: 16),
         Row(
