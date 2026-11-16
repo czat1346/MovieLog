@@ -24,7 +24,7 @@ class MovieCard extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       // TMDB의 id를 그대로 넘긴다 (index 아님!) ← 제출양식 'movie.id 전달 위치'
-      onTap: () => context.push('/movies/${movie.id}'),
+      onTap: () => context.push('/movies/${movie.id}', extra: movie),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

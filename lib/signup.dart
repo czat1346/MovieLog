@@ -3,7 +3,10 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'core/validators/member_validators.dart';
+import 'data/models/create_member_request.dart';
 import 'view_models/sign_up_view_model.dart';
+import 'view_models/submit_status.dart';
 import 'widgets/movielog_button.dart';
 
 /// 회원가입 화면
@@ -52,7 +55,8 @@ class _SignupScreenState extends State<SignupScreen> {
       vm.nicknameCheckStatus == CheckStatus.available &&
       vm.emailCheckStatus == CheckStatus.available &&
       _passwordStatus == true &&
-      _agreedToTerms;
+      _agreedToTerms &&
+      vm.submitStatus != SubmitStatus.submitting; // 제출 중에는 가입 불가(연속 탭 차단)
 
   // 아이콘: 서버 확인 전에는 체크(✔)를 보여주지 않는다
   bool? _iconStatus(CheckStatus check, bool? formatStatus) {
@@ -65,22 +69,22 @@ class _SignupScreenState extends State<SignupScreen> {
   void _onNicknameChanged(String value) {
     context.read<SignUpViewModel>().onNicknameChanged(value); // 이전 결과 무효화
     setState(() {
-      _nicknameStatus = value.trim().length >= 2;
+      _nicknameStatus = validateNicknameFormat(value) == null;
     });
   }
 
   void _onEmailChanged(String value) {
     context.read<SignUpViewModel>().onEmailChanged(value);
     setState(() {
-      _emailStatus = value.isNotEmpty &&
-          value.contains('@') &&
-          value.contains('.');
+      _emailStatus =
+          value.isNotEmpty && value.contains('@') && value.contains('.');
     });
   }
 
   void _onPasswordChanged(String value) {
+    context.read<SignUpViewModel>().onPasswordChanged(); // 서버가 거부한 오류 해제
     setState(() {
-      _passwordStatus = value.length >= 8;
+      _passwordStatus = validatePasswordFormat(value) == null;
     });
   }
 
@@ -90,70 +94,101 @@ class _SignupScreenState extends State<SignupScreen> {
     });
   }
 
-  void _onSignupPressed() {
-    // 키보드 '완료'로 약관 미동의·중복 확인 미완료 상태가 통과되는 것 방지
-    if (!_canSubmit(context.read<SignUpViewModel>())) return;
+  Future<void> _onSignupPressed() async {
+    final viewModel = context.read<SignUpViewModel>();
+    // 키보드 '완료'로 약관 미동의·중복 확인 미완료·제출 중 상태가 통과되는 것 방지
+    if (!_canSubmit(viewModel)) return;
     final isValid = formKey.currentState?.validate() ?? false;
     if (!isValid) return;
     FocusScope.of(context).unfocus();
-    context.go('/home'); // 스택에 회원가입을 남기지 않고 홈으로 이동
+
+    await viewModel.submit(
+      CreateMemberRequest(
+        email: _emailController.text,
+        password: _passwordController.text,
+        nickname: _nicknameController.text,
+      ),
+    );
+    if (!mounted) return; // 제출 중 화면 이탈 뒤에는 결과를 반영하지 않습니다.
+
+    if (viewModel.submitStatus == SubmitStatus.success &&
+        viewModel.createdMemberId != null) {
+      // 가입은 토큰을 주지 않으므로 로그인 화면으로 보냅니다. (memberId는 인증 수단이 아님)
+      context.go('/login');
+      return;
+    }
+    // 비밀번호 400은 입력칸 errorText로 이미 표시됩니다. 그 외 400·409 등은 Snackbar로 안내합니다.
+    final message = viewModel.snackbarMessage;
+    if (message != null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<SignUpViewModel>();
-    return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const _BackHeader(title: '회원가입'),
-              const SizedBox(height: 24),
-              const Center(
-                child: Text(
-                  '환영합니다!\n간단한 정보만 입력하고 시작해보세요.',
-                  textAlign: TextAlign.center,
+    // 제출 중에는 뒤로가기·스와이프 백을 막고, 성공/실패로 끝나면 다시 나갈 수 있습니다.
+    return PopScope(
+      canPop: vm.submitStatus != SubmitStatus.submitting,
+      child: Scaffold(
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const _BackHeader(title: '회원가입'),
+                const SizedBox(height: 24),
+                const Center(
+                  child: Text(
+                    '환영합니다!\n간단한 정보만 입력하고 시작해보세요.',
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 32),
-              _SignupForm(
-                formKey: formKey,
-                nicknameController: _nicknameController,
-                emailController: _emailController,
-                passwordController: _passwordController,
-                nicknameFocusNode: _nicknameFocusNode,
-                emailFocusNode: _emailFocusNode,
-                passwordFocusNode: _passwordFocusNode,
-                viewModel: vm,
-                nicknameIconStatus:
-                    _iconStatus(vm.nicknameCheckStatus, _nicknameStatus),
-                emailIconStatus: _iconStatus(vm.emailCheckStatus, _emailStatus),
-                passwordStatus: _passwordStatus,
-                obscurePassword: _obscurePassword,
-                onNicknameChanged: _onNicknameChanged,
-                onEmailChanged: _onEmailChanged,
-                onPasswordChanged: _onPasswordChanged,
-                onTogglePasswordVisibility: _onTogglePasswordVisibility,
-                onSignupPressed: _onSignupPressed,
-              ),
-              const SizedBox(height: 64),
-              _TermsAndSubmit(
-                agreedToTerms: _agreedToTerms,
-                onAgreedChanged: (value) {
-                  setState(() {
-                    _agreedToTerms = value ?? false;
-                  });
-                },
-                isFormValid: _canSubmit(vm),
-                onSignupPressed: _onSignupPressed,
-                onLoginTap: () {
-                  // TODO: 로그인 화면으로 이동
-                },
-              ),
-            ],
+                const SizedBox(height: 32),
+                _SignupForm(
+                  formKey: formKey,
+                  nicknameController: _nicknameController,
+                  emailController: _emailController,
+                  passwordController: _passwordController,
+                  nicknameFocusNode: _nicknameFocusNode,
+                  emailFocusNode: _emailFocusNode,
+                  passwordFocusNode: _passwordFocusNode,
+                  viewModel: vm,
+                  nicknameIconStatus: _iconStatus(
+                    vm.nicknameCheckStatus,
+                    _nicknameStatus,
+                  ),
+                  emailIconStatus: _iconStatus(
+                    vm.emailCheckStatus,
+                    _emailStatus,
+                  ),
+                  passwordStatus: _passwordStatus,
+                  obscurePassword: _obscurePassword,
+                  onNicknameChanged: _onNicknameChanged,
+                  onEmailChanged: _onEmailChanged,
+                  onPasswordChanged: _onPasswordChanged,
+                  onTogglePasswordVisibility: _onTogglePasswordVisibility,
+                  onSignupPressed: _onSignupPressed,
+                ),
+                const SizedBox(height: 64),
+                _TermsAndSubmit(
+                  agreedToTerms: _agreedToTerms,
+                  onAgreedChanged: (value) {
+                    setState(() {
+                      _agreedToTerms = value ?? false;
+                    });
+                  },
+                  isFormValid: _canSubmit(vm),
+                  onSignupPressed: _onSignupPressed,
+                  isSubmitting: vm.submitStatus == SubmitStatus.submitting,
+                  onLoginTap: () => context.go('/login'),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -177,10 +212,7 @@ Widget? _statusIcon(bool? status) {
             'assets/icons/error.svg',
             width: 20,
             height: 20,
-            colorFilter: const ColorFilter.mode(
-              Colors.red,
-              BlendMode.srcIn,
-            ),
+            colorFilter: const ColorFilter.mode(Colors.red, BlendMode.srcIn),
           ),
   );
 }
@@ -243,16 +275,17 @@ class _BackHeader extends StatelessWidget {
                 height: 24,
               ),
               onPressed: () {
-                // 클릭해도 아무 동작 없음
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/login');
+                }
               },
             ),
           ),
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -333,12 +366,7 @@ class _SignupForm extends StatelessWidget {
                     ),
                     status: nicknameIconStatus,
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().length < 2) {
-                      return '닉네임은 2자 이상이어야 합니다.';
-                    }
-                    return null;
-                  },
+                  validator: validateNicknameFormat,
                 ),
               ),
               const SizedBox(width: 8),
@@ -346,7 +374,8 @@ class _SignupForm extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 6), // 56px 입력창 중앙에 44px 버튼
                 child: MovieLogButton(
                   label: '중복 확인',
-                  isLoading: viewModel.nicknameCheckStatus == CheckStatus.checking,
+                  isLoading:
+                      viewModel.nicknameCheckStatus == CheckStatus.checking,
                   onPressed: viewModel.canCheckNickname
                       ? () => viewModel.checkNickname(nicknameController.text)
                       : null,
@@ -359,8 +388,10 @@ class _SignupForm extends StatelessWidget {
               padding: const EdgeInsets.only(left: 12, top: 4),
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: Text('사용할 수 있는 닉네임입니다.',
-                    style: Theme.of(context).textTheme.bodySmall),
+                child: Text(
+                  '사용할 수 있는 닉네임입니다.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ),
             ),
           const SizedBox(height: 16),
@@ -416,8 +447,10 @@ class _SignupForm extends StatelessWidget {
               padding: const EdgeInsets.only(left: 12, top: 4),
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: Text('사용할 수 있는 이메일입니다.',
-                    style: Theme.of(context).textTheme.bodySmall),
+                child: Text(
+                  '사용할 수 있는 이메일입니다.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ),
             ),
           const SizedBox(height: 16),
@@ -432,6 +465,8 @@ class _SignupForm extends StatelessWidget {
             decoration: _errorStyledDecoration(
               base: InputDecoration(
                 labelText: '비밀번호',
+                // 로컬 validator를 통과해도 서버가 거부한 값(400)이면 계속 오류로 보입니다.
+                errorText: viewModel.passwordErrorText,
                 suffixIcon: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -450,14 +485,11 @@ class _SignupForm extends StatelessWidget {
                   ],
                 ),
               ),
-              status: passwordStatus,
+              status: viewModel.passwordErrorText != null
+                  ? false
+                  : passwordStatus,
             ),
-            validator: (value) {
-              if (value == null || value.length < 8) {
-                return '비밀번호는 8자 이상이어야 합니다';
-              }
-              return null;
-            },
+            validator: validatePasswordFormat,
           ),
         ],
       ),
@@ -471,6 +503,7 @@ class _TermsAndSubmit extends StatelessWidget {
     required this.agreedToTerms,
     required this.onAgreedChanged,
     required this.isFormValid,
+    required this.isSubmitting,
     required this.onSignupPressed,
     required this.onLoginTap,
   });
@@ -478,6 +511,7 @@ class _TermsAndSubmit extends StatelessWidget {
   final bool agreedToTerms;
   final ValueChanged<bool?> onAgreedChanged;
   final bool isFormValid;
+  final bool isSubmitting;
   final VoidCallback onSignupPressed;
   final VoidCallback onLoginTap;
 
@@ -487,10 +521,7 @@ class _TermsAndSubmit extends StatelessWidget {
       children: [
         Row(
           children: [
-            Checkbox(
-              value: agreedToTerms,
-              onChanged: onAgreedChanged,
-            ),
+            Checkbox(value: agreedToTerms, onChanged: onAgreedChanged),
             const Text('필수 약관에 동의합니다'),
           ],
         ),
@@ -498,6 +529,7 @@ class _TermsAndSubmit extends StatelessWidget {
         MovieLogButton(
           label: '가입하기',
           width: double.infinity,
+          isLoading: isSubmitting,
           onPressed: isFormValid ? onSignupPressed : null,
         ),
         const SizedBox(height: 16),

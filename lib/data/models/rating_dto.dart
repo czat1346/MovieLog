@@ -1,4 +1,4 @@
-/// 학습용 유저 평점 응답 모델. (GET /v5/members/{memberId}/ratings)
+/// 평점 응답 모델. v7 등록/수정의 result(Rating 객체)와 공개 목록 조회 항목에 공통으로 씁니다.
 class RatingDto {
   const RatingDto({
     required this.ratingId,
