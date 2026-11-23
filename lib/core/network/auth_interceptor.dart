@@ -13,12 +13,27 @@ class AuthInterceptor extends Interceptor {
 
   static const _host = 'workbook.devnoco.com';
 
-  bool _isProtected(RequestOptions options) {
+    bool _isProtected(RequestOptions options) {
+    // MovieLog 서버가 아닌 곳(TMDB 등)에는 JWT를 붙이지 않습니다.
+    if (options.uri.host != _host) return false;
     final path = options.uri.path;
-    return options.uri.host == _host &&
-        (path == '/v7/members/me' ||
-            path == '/v7/ratings' ||
-            path.startsWith('/v7/ratings/'));
+    final method = options.method.toUpperCase();
+
+    // 8주차에 보호하던 경로 (/v7 → /v8)
+    final w8Protected = path == '/v8/members/me' ||
+        path == '/v8/ratings' ||
+        path.startsWith('/v8/ratings/');
+
+    // 이번 주에 새로 생긴 즐겨찾기: 등록(POST)·목록(GET) / 여부 조회(GET)·해제(DELETE)
+    final favorites = (path == '/v8/favorites' &&
+            (method == 'GET' || method == 'POST')) ||
+        (RegExp(r'^/v8/favorites/[1-9]\d*$').hasMatch(path) &&
+            (method == 'GET' || method == 'DELETE'));
+
+    // 영화 기록 저장 (Challenge에서만 사용)
+    final movieRecord = path == '/v8/movie-records' && method == 'POST';
+
+    return w8Protected || favorites || movieRecord;
   }
 
   @override

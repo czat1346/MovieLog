@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import 'view_models/movie_list_view_model.dart';
+import 'view_models/load_phase.dart';
+import 'view_models/paged_movies_view_model.dart';
 import 'widgets/common_app_bar.dart';
 import 'widgets/movie_grid.dart';
 import 'widgets/movie_list_empty.dart';
 import 'widgets/movie_list_error.dart';
 import 'widgets/movie_list_loading.dart';
+import 'widgets/movie_page_footer.dart';
 
 class MovieListScreen extends StatelessWidget {
   const MovieListScreen({super.key});
@@ -14,11 +17,20 @@ class MovieListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const CommonAppBar(title: '영화'),
-      body: Consumer<MovieListViewModel>(
+      appBar: CommonAppBar(
+        title: '영화',
+        actions: [
+          IconButton(
+            tooltip: '영화 검색',
+            icon: const Icon(Icons.search),
+            onPressed: () => context.push('/movies/search'),
+          ),
+        ],
+      ),
+      body: Consumer<PagedMoviesViewModel>(
         builder: (context, vm, child) {
-          final isLoading = vm.status == MovieListLoadStatus.idle ||
-              vm.status == MovieListLoadStatus.loading;
+          final isLoading =
+              vm.phase == LoadPhase.idle || vm.phase == LoadPhase.loading;
 
           return Column(
             children: [
@@ -39,33 +51,38 @@ class MovieListScreen extends StatelessWidget {
                     return FilterChip(
                       label: Text(label),
                       selected: selected,
-                      // 로딩 중에는 null → 칩이 눌리지 않는다 (필수 미션 7번)
+                      // 로딩 중에는 null → 칩이 눌리지 않습니다.
                       onSelected: isLoading
                           ? null
                           : (_) => context
-                              .read<MovieListViewModel>()
-                              .selectGenre(
+                              .read<PagedMoviesViewModel>()
+                              .loadInitial(
                                 // 이미 선택된 장르를 다시 누르면 해제 = 전체
-                                (selected || genreId == null) ? null : genreId,
+                                genreId: (selected || genreId == null)
+                                    ? null
+                                    : genreId,
                               ),
                     );
                   },
                 ),
               ),
               Expanded(
-                child: switch (vm.status) {
-                  MovieListLoadStatus.idle ||
-                  MovieListLoadStatus.loading =>
+                child: switch (vm.phase) {
+                  LoadPhase.idle ||
+                  LoadPhase.loading =>
                     const MovieListLoading(),
-                  MovieListLoadStatus.error => MovieListError(
-                      onRetry: () => vm.genres.isEmpty
-                          ? context.read<MovieListViewModel>().loadInitial()
-                          : context
-                              .read<MovieListViewModel>()
-                              .selectGenre(vm.selectedGenreId),
+                  LoadPhase.error => MovieListError(
+                      message: vm.errorMessage ?? '영화를 불러오지 못했습니다.',
+                      onRetry: () {
+                        vm.loadGenres(); // 장르 목록도 비어 있으면 다시 시도
+                        vm.loadInitial(genreId: vm.selectedGenreId);
+                      },
                     ),
-                  MovieListLoadStatus.empty => const MovieListEmpty(),
-                  MovieListLoadStatus.success => MovieGrid(movies: vm.movies),
+                  LoadPhase.empty => const MovieListEmpty(),
+                  LoadPhase.ready => MovieGrid(
+                      movies: vm.movies,
+                      footer: MoviePageFooter(vm: vm),
+                    ),
                 },
               ),
             ],

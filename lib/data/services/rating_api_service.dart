@@ -6,7 +6,7 @@ import '../models/rating_dto.dart';
 import '../models/rating_request.dart';
 import 'error_messages.dart';
 
-/// v7 result(Rating 객체)를 읽습니다. result가 없으면 성공으로 취급하지 않습니다.
+/// v8 result(Rating 객체)를 읽습니다. result가 없으면 성공으로 취급하지 않습니다.
 RatingDto parseRatingResult(Object? data) {
   if (data is! Map<String, dynamic>) {
     throw StateError('평점 응답 형식이 올바르지 않습니다.');
@@ -37,23 +37,23 @@ class RatingApiService {
   final Dio _publicDio;
   final Dio _authDio;
 
-  /// GET /v7/members/{memberId}/ratings → 직접 배열 (공개).
-  /// v7 로그인·내 정보 응답에 memberId가 없어 현재 화면 흐름에서는 호출하지 않습니다.
+  /// GET /v8/members/{memberId}/ratings → 직접 배열 (공개).
+  /// v8 로그인·내 정보 응답에 memberId가 없어 현재 화면 흐름에서는 호출하지 않습니다.
   Future<List<RatingDto>> fetchMemberRatings(int memberId) async {
-    final response = await _publicDio.get('/v7/members/$memberId/ratings');
+    final response = await _publicDio.get('/v8/members/$memberId/ratings');
     return parseRatingList(response.data);
   }
 
-  /// POST /v7/ratings → result = Rating 객체. body에 memberId를 넣지 않습니다.
+  /// POST /v8/ratings → result = Rating 객체. body에 memberId를 넣지 않습니다.
   Future<RatingDto> createRating(CreateRatingRequest request) async {
     final response = await _authDio.post(
-      '/v7/ratings',
+      '/v8/ratings',
       data: request.toJson(),
     );
     return parseRatingResult(response.data);
   }
 
-  /// PATCH /v7/ratings/{ratingId} → result = Rating 객체.
+  /// PATCH /v8/ratings/{ratingId} → result = Rating 객체.
   ///
   /// 부분 수정이 아니라 **전체 교체**입니다. comment를 생략하면 null로 덮이므로
   /// 항상 score·comment를 함께 보냅니다.
@@ -63,15 +63,15 @@ class RatingApiService {
     String? comment,
   }) async {
     final response = await _authDio.patch(
-      '/v7/ratings/$ratingId',
+      '/v8/ratings/$ratingId',
       data: {'score': score, 'comment': comment},
     );
     return parseRatingResult(response.data);
   }
 
-  /// DELETE /v7/ratings/{ratingId} → 200, result null (v6의 204가 아님).
+  /// DELETE /v8/ratings/{ratingId} → 200, result null (v6의 204가 아님).
   Future<void> deleteRating(int ratingId) async {
-    final response = await _authDio.delete('/v7/ratings/$ratingId');
+    final response = await _authDio.delete('/v8/ratings/$ratingId');
     if (response.statusCode != 200) {
       throw StateError('예상하지 못한 삭제 응답: ${response.statusCode}');
     }

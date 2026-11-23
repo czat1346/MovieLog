@@ -60,6 +60,8 @@ class ProfileScreen extends StatelessWidget {
           FavoriteGenres(),
           SizedBox(height: 24),
           MyRatingsTile(),
+          MyFavoritesTile(),
+          SizedBox(height: 32),
           SizedBox(height: 32),
         ],
       ),
@@ -252,6 +254,19 @@ class MyRatingsTile extends StatelessWidget {
       title: const Text('내가 등록한 평점'),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => context.push('/my/ratings'),
+    );
+  }
+}
+class MyFavoritesTile extends StatelessWidget {
+  const MyFavoritesTile({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: const Text('내 즐겨찾기'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => context.push('/my/favorites'),
     );
   }
 }

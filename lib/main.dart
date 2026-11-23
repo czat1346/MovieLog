@@ -4,6 +4,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'core/session/auth_session_bridge.dart';
+import 'core/session/session_guard.dart';
+import 'data/services/favorite_api_service.dart';
+
 import 'core/network/movie_log_client.dart';
 import 'core/network/tmdb_client.dart';
 import 'core/storage/token_storage.dart';
@@ -56,6 +60,9 @@ class MovieLogApp extends StatelessWidget {
         Provider<RatingApiService>(
           create: (_) => RatingApiService(_publicClient, _authClient),
         ),
+        Provider<FavoriteApiService>(
+          create: (_) => FavoriteApiService(_authClient),
+        ),
         // Service를 주입받는 ViewModel
         ChangeNotifierProvider<AuthViewModel>(
           create: (context) => AuthViewModel(
@@ -67,6 +74,22 @@ class MovieLogApp extends StatelessWidget {
         // 이번 로그인 세션에서 등록한 평점. 로그아웃·만료·회원 전환 시 비워집니다.
         ChangeNotifierProvider<SessionRatingsStore>(
           create: (context) => SessionRatingsStore(context.read<AuthViewModel>()),
+        ),
+                // 현재 로그인 세션을 판정합니다. (AuthViewModel 상태를 SessionGuard에 전달)
+        Provider<AuthSessionBridge>(
+          create: (context) {
+            final auth = context.read<AuthViewModel>();
+            return AuthSessionBridge(
+              authSignals: auth,
+              sessionVersion: () => auth.sessionVersion,
+              verifiedEmail: () =>
+                  auth.status == AuthStatus.signedIn ? auth.member?.email : null,
+            );
+          },
+          dispose: (_, bridge) => bridge.dispose(),
+        ),
+        Provider<SessionGuard>(
+          create: (context) => context.read<AuthSessionBridge>().guard,
         ),
       ],
       child: const _MovieLogRouterApp(),

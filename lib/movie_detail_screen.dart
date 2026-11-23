@@ -9,6 +9,8 @@ import 'widgets/common_app_bar.dart';
 import 'widgets/rating_dialog.dart';
 import 'widgets/tmdb_poster_image.dart';
 
+import 'view_models/favorite_detail_view_model.dart';
+import 'widgets/favorite_button.dart';
 /// 영화 상세 화면 (TMDB 영화 정보 + MovieLog 평점 등록).
 /// 평점 조회·수정·삭제는 마이페이지의 "내가 등록한 평점" 화면에서만 합니다.
 class MovieDetailScreen extends StatefulWidget {
@@ -19,7 +21,6 @@ class MovieDetailScreen extends StatefulWidget {
 }
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
-  bool _isFavorite = false;
 
   void _showSnack(String message) {
     ScaffoldMessenger.of(context)
@@ -29,9 +30,12 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       );
   }
 
-  void _toggleFavorite() {
-    setState(() => _isFavorite = !_isFavorite);
-    _showSnack(_isFavorite ? '즐겨찾기에 추가했습니다.' : '즐겨찾기에서 삭제했습니다.');
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<FavoriteDetailViewModel>().load();
+    });
   }
 
   Future<void> _openRatingDialog() async {
@@ -96,11 +100,24 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(movie.title, style: textTheme.titleLarge),
-                  if (year != null) ...[
-                    const SizedBox(height: 4),
-                    Text(year, style: textTheme.bodySmall),
-                  ],
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(movie.title, style: textTheme.titleLarge),
+                            if (year != null) ...[
+                              const SizedBox(height: 4),
+                              Text(year, style: textTheme.bodySmall),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const FavoriteButton(),
+                    ],
+                  ),
                   const SizedBox(height: 16),
                   Row(
                     children: [
@@ -143,26 +160,16 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
         ),
       ),
       // 스크롤과 무관하게 항상 하단에 고정되는 버튼 영역
-      bottomNavigationBar: _BottomActionBar(
-        isFavorite: _isFavorite,
-        onFavoriteTap: _toggleFavorite,
-        // 이 화면은 Router redirect로 로그인 상태에서만 열립니다.
-        onRateTap: _openRatingDialog,
-      ),
+      bottomNavigationBar: _BottomActionBar(onRateTap: _openRatingDialog),
     );
   }
 }
 
 /// 하단 고정 버튼: 즐겨찾기(토글) + 평점 남기기
+/// 하단 고정 버튼: 평점 남기기 (즐겨찾기는 제목 옆 FavoriteButton으로 옮겨졌습니다)
 class _BottomActionBar extends StatelessWidget {
-  const _BottomActionBar({
-    required this.isFavorite,
-    required this.onFavoriteTap,
-    required this.onRateTap,
-  });
+  const _BottomActionBar({required this.onRateTap});
 
-  final bool isFavorite;
-  final VoidCallback onFavoriteTap;
   final VoidCallback onRateTap;
 
   @override
@@ -175,53 +182,23 @@ class _BottomActionBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
       child: SafeArea(
         top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onFavoriteTap,
-                    // 즐겨찾기 상태에 따라 아이콘과 배경이 바뀜
-                    icon: Icon(
-                      isFavorite ? Icons.bookmark : Icons.bookmark_border,
-                    ),
-                    label: const Text('즐겨찾기'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primary,
-                      backgroundColor: isFavorite
-                          ? const Color(0xFFEADDFF)
-                          : Colors.transparent,
-                      side: const BorderSide(color: AppColors.primary),
-                      minimumSize: const Size.fromHeight(52),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(26),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: onRateTap,
-                    icon: const Icon(Icons.rate_review_outlined),
-                    label: const Text('평점 남기기'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: AppColors.gray,
-                      disabledForegroundColor: Colors.white,
-                      minimumSize: const Size.fromHeight(52),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(26),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: onRateTap,
+            icon: const Icon(Icons.rate_review_outlined),
+            label: const Text('평점 남기기'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: AppColors.gray,
+              disabledForegroundColor: Colors.white,
+              minimumSize: const Size.fromHeight(52),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(26),
+              ),
             ),
-          ],
+          ),
         ),
       ),
     );
